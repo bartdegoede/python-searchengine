@@ -1,0 +1,2 @@
+lxml==4.5.2
+PyStemmer==2.0.1
