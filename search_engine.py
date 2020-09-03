@@ -1,6 +1,7 @@
+from collections import Counter
 from dataclasses import dataclass
-from joblib import Parallel, delayed
 from lxml import etree
+import math
 import time
 import re
 import string
@@ -40,6 +41,12 @@ class Abstract:
     def fulltext(self):
         return ' '.join([self.title, self.abstract])
 
+    def analyze(self):
+        self.term_frequencies = Counter(analyze(self.fulltext))
+
+    def term_frequency(self, term):
+        return self.term_frequencies.get(term, 0)
+
 class Index:
     def __init__(self):
         self.index = {}
@@ -48,26 +55,56 @@ class Index:
     def index_document(self, document):
         if document.ID not in self.documents:
             self.documents[document.ID] = document
+            document.analyze()
 
         for token in analyze(document.fulltext):
             if token not in self.index:
                 self.index[token] = set()
             self.index[token].add(document.ID)
 
+    def document_frequency(self, token):
+        return len(self.index.get(token, []))
+
+    def inverse_document_frequency(self, token):
+        # Manning, Hinrich and Schütze use log10, so we do too, even though it
+        # doesn't really matter which log we use anyway
+        # https://nlp.stanford.edu/IR-book/html/htmledition/inverse-document-frequency-1.html
+        return math.log10(len(self.documents) / self.document_frequency(token))
+
+    def _results(self, analyzed_query):
+        return [self.index.get(token, set()) for token in analyzed_query]
+
     @timing
-    def search(self, query, search_type='AND'):
+    def search(self, query, search_type='AND', score=False):
         """
         Boolean search; this will return documents that contain words from the
         query, but not rank them (sets are fast, but unordered).
         """
-        results = [self.index.get(token, set()) for token in analyze(query)]
+        analyzed_query = analyze(query)
+        results = self._results(analyzed_query)
         if search_type == 'AND':
             # all tokens must be in the document
-            return [self.documents[doc_id] for doc_id in set.intersection(*results)]
+            documents = [self.documents[doc_id] for doc_id in set.intersection(*results)]
         if search_type == 'OR':
             # only one token has to be in the document
-            return [self.documents[doc_id] for doc_id in set.union(*results)]
-        return set()
+            documents = [self.documents[doc_id] for doc_id in set.union(*results)]
+
+        if score:
+            return self._score(analyzed_query, documents)
+        return documents
+
+    def _score(self, analyzed_query, documents):
+        results = []
+        if not documents:
+            return results
+        for document in documents:
+            score = 0.0
+            for token in analyzed_query:
+                tf = document.term_frequency(token)
+                idf = self.inverse_document_frequency(token)
+                score += tf * idf
+            results.append((document, score))
+        return sorted(results, key=lambda doc: doc[1], reverse=True)
 
 def load_documents():
     start = time.time()
@@ -143,7 +180,10 @@ def run():
 
     substring_search(documents, 'python')
     regex_search(documents, 'python')
-    index.search('Python Programming Language')
+    index.search('Python Programming Language', search_type='AND')
+    index.search('Python Programming Language', search_type='OR')
+    index.search('Python Programming Language', search_type='AND', score=True)
+    index.search('Python Programming Language', search_type='OR', score=True)
     return index
 
 if __name__ == '__main__':
