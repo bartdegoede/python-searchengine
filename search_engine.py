@@ -3,11 +3,13 @@ from joblib import Parallel, delayed
 from lxml import etree
 import time
 import re
+import string
 import Stemmer
 
 STOPWORDS = set(['the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'I', 'it', 'for',
                  'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 'by',
                  'from'])
+PUNCTUATION = re.compile('[%s]' % re.escape(string.punctuation))
 
 stemmer = Stemmer.Stemmer('english')
 
@@ -107,6 +109,9 @@ def tokenize(text):
 def lowercase_filter(tokens):
     return [token.lower() for token in tokens]
 
+def punctuation_filter(tokens):
+    return [PUNCTUATION.sub('', token) for token in tokens]
+
 def stopword_filter(tokens):
     return [token for token in tokens if token not in STOPWORDS]
 
@@ -116,10 +121,11 @@ def stem_filter(tokens):
 def analyze(text):
     tokens = tokenize(text)
     tokens = lowercase_filter(tokens)
+    tokens = punctuation_filter(tokens)
     tokens = stopword_filter(tokens)
     tokens = stem_filter(tokens)
 
-    return tokens
+    return [token for token in tokens if token]
 
 @timing
 def index_documents(documents, index):
