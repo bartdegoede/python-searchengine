@@ -6,7 +6,7 @@ from search.documents import Abstract
 
 def load_documents():
     start = time.time()
-    with gzip.open('data/enwiki.latest-abstract.xml.gz', 'rb') as f:
+    with gzip.open('data/enwiki-latest-abstract.xml.gz', 'rb') as f:
         doc_id = 0
         for _, element in etree.iterparse(f, events=('end',), tag='doc'):
             title = element.findtext('./title')

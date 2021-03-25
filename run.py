@@ -19,7 +19,7 @@ def index_documents(documents, index):
 if __name__ == '__main__':
     # this will only download the xml dump if you don't have a copy already;
     # just delete the file if you want a fresh copy
-    if not os.path.exists('data/enwiki.latest-abstract.xml.gz'):
+    if not os.path.exists('data/enwiki-latest-abstract.xml.gz'):
         download_wikipedia_abstracts()
 
     index = index_documents(load_documents(), Index())
