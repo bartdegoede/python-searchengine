@@ -27,5 +27,5 @@ if __name__ == '__main__':
 
     index.search('London Beer Flood', search_type='AND')
     index.search('London Beer Flood', search_type='OR')
-    index.search('London Beer Flood', search_type='AND', score=True)
-    index.search('London Beer Flood', search_type='OR', score=True)
+    index.search('London Beer Flood', search_type='AND', rank=True)
+    index.search('London Beer Flood', search_type='OR', rank=True)

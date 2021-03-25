@@ -19,7 +19,7 @@ class Index:
             self.index[token].add(document.ID)
 
     def document_frequency(self, token):
-        return len(self.index.get(token, []))
+        return len(self.index.get(token, set()))
 
     def inverse_document_frequency(self, token):
         # Manning, Hinrich and Schütze use log10, so we do too, even though it
@@ -31,11 +31,19 @@ class Index:
         return [self.index.get(token, set()) for token in analyzed_query]
 
     @timing
-    def search(self, query, search_type='AND', score=False):
+    def search(self, query, search_type='AND', rank=False):
         """
-        Boolean search; this will return documents that contain words from the
-        query, but not rank them (sets are fast, but unordered).
+        Search; this will return documents that contain words from the query,
+        and rank them if requested (sets are fast, but unordered).
+
+        Parameters:
+          - query: the query string
+          - search_type: ('AND', 'OR') do all query terms have to match, or just one
+          - score: (True, False) if True, rank results based on TF-IDF score
         """
+        if search_type not in ('AND', 'OR'):
+            return []
+
         analyzed_query = analyze(query)
         results = self._results(analyzed_query)
         if search_type == 'AND':
@@ -45,11 +53,11 @@ class Index:
             # only one token has to be in the document
             documents = [self.documents[doc_id] for doc_id in set.union(*results)]
 
-        if score:
-            return self._score(analyzed_query, documents)
+        if rank:
+            return self.rank(analyzed_query, documents)
         return documents
 
-    def _score(self, analyzed_query, documents):
+    def rank(self, analyzed_query, documents):
         results = []
         if not documents:
             return results
