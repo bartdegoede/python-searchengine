@@ -1,7 +1,12 @@
 # python-searchengine
+
 Simple search engine implementation in Python for illustrative purposes to go with [this blog post](https://bart.degoe.de/building-a-full-text-search-engine-150-lines-of-code/).
 
-# Usage
+## Requirements
+
+Python 3.7 or greater.
+
+## Usage
 
 Run from the command line:
 
