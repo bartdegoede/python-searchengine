@@ -8,7 +8,7 @@ Python 3.7 or greater.
 
 ## Usage
 
-Run from the command line:
+Run from the command line (this program will exit afterwards):
 
 ```bash
 $ pip install -r requirements.txt
@@ -51,3 +51,7 @@ Out[2]:
  (Abstract(ID=2131166, title='Wikipedia: Comparison of programming languages (object-oriented programming)', abstract='This comparison of programming languages compares how object-oriented programming languages such as C++, Java, Smalltalk, Object Pascal, Perl, Python, and others manipulate data structures.', url='https://en.wikipedia.org/wiki/Comparison_of_programming_languages_(object-oriented_programming)'),
   20.407894768933833)]
 ```
+
+## Using a smaller data set
+
+The code will download the complete set of 6.7m Wikipedia abstracts. If you want to play around with a smaller data set, just pick one of the numbered gzip files from https://dumps.wikimedia.org/enwiki/latest/ and change the URL in [download.py](https://github.com/bartdegoede/python-searchengine/blob/master/download.py#L5).
