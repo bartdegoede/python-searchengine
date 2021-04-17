@@ -11,3 +11,7 @@ def download_wikipedia_abstracts():
                 f.write(chunk)
                 if i % 10 == 0:
                     print(f'Downloaded {i} megabytes', end='\r')
+
+                    
+if __name__ == '__main__':
+    download_wikipedia_abstracts()
