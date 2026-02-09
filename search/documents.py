@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 from .analysis import analyze
 
+
 @dataclass
 class Abstract:
     """Wikipedia abstract"""

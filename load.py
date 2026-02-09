@@ -1,21 +1,19 @@
-import gzip
-from lxml import etree
-import time
+from datasets import load_dataset
+from tqdm import tqdm
 
 from search.documents import Abstract
 
+DATASET = "wikimedia/wikipedia"
+DATASET_CONFIG = "20231101.en"
+
+
 def load_documents():
-    start = time.time()
-    with gzip.open('data/enwiki-latest-abstract.xml.gz', 'rb') as f:
-        doc_id = 0
-        for _, element in etree.iterparse(f, events=('end',), tag='doc'):
-            title = element.findtext('./title')
-            url = element.findtext('./url')
-            abstract = element.findtext('./abstract')
+    ds = load_dataset(DATASET, DATASET_CONFIG, split="train")
+    for doc_id, row in enumerate(tqdm(ds, desc="Loading documents")):
+        title = row["title"]
+        url = row["url"]
+        # extract first paragraph as abstract
+        text = row["text"]
+        abstract = text.split("\n\n")[0] if text else ""
 
-            yield Abstract(ID=doc_id, title=title, url=url, abstract=abstract)
-
-            doc_id += 1
-            element.clear()
-    end = time.time()
-    print(f'Parsing XML took {end - start} seconds')
+        yield Abstract(ID=doc_id, title=title, url=url, abstract=abstract)

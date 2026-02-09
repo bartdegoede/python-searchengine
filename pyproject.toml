@@ -1,0 +1,25 @@
+[project]
+name = "python-searchengine"
+version = "0.1.0"
+description = "Simple full-text search engine implementation in Python"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "datasets",
+    "PyStemmer",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
