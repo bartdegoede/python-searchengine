@@ -1,5 +1,6 @@
 import time
 
+
 def timing(method):
     """
     Quick and dirty decorator to time functions: it will record the time when

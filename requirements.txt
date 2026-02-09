@@ -1,3 +1,0 @@
-lxml==4.9.2
-PyStemmer==2.0.1
-requests==2.24.0

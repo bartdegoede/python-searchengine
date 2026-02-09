@@ -1,7 +1,8 @@
 import math
 
-from .timing import timing
 from .analysis import analyze
+from .timing import timing
+
 
 class Index:
     def __init__(self):
@@ -49,7 +50,7 @@ class Index:
         if search_type == 'AND':
             # all tokens must be in the document
             documents = [self.documents[doc_id] for doc_id in set.intersection(*results)]
-        if search_type == 'OR':
+        elif search_type == 'OR':
             # only one token has to be in the document
             documents = [self.documents[doc_id] for doc_id in set.union(*results)]
 
