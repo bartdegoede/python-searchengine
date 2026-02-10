@@ -70,3 +70,37 @@ class TestVectorIndex:
         query = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
         results = index.search(query, k=100)
         assert len(results) == 4
+
+
+class TestVectorIndexPersistence:
+    def test_save_and_load(self, tmp_path):
+        index = _build_vector_index()
+        index.save(tmp_path / "test_index")
+
+        loaded = VectorIndex(dimensions=4)
+        loaded.load(tmp_path / "test_index")
+
+        assert len(loaded.documents) == 4
+        assert loaded._matrix.shape == (4, 4)
+
+    def test_loaded_index_search(self, tmp_path):
+        index = _build_vector_index()
+        index.save(tmp_path / "test_index")
+
+        loaded = VectorIndex(dimensions=4)
+        loaded.load(tmp_path / "test_index")
+
+        query = np.array([1.0, 0.8, 0.0, 0.0], dtype=np.float32)
+        results = loaded.search(query, k=2)
+        assert len(results) == 2
+        ids = [doc.ID for doc, _ in results]
+        assert ids[0] in (0, 1)
+
+    def test_loaded_index_is_memmap(self, tmp_path):
+        index = _build_vector_index()
+        index.save(tmp_path / "test_index")
+
+        loaded = VectorIndex(dimensions=4)
+        loaded.load(tmp_path / "test_index")
+
+        assert isinstance(loaded._matrix, np.memmap)
