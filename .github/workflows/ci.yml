@@ -14,6 +14,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
       - run: uv run ruff check .
+      - run: uv run mypy search/
 
   test:
     runs-on: ubuntu-latest

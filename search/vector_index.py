@@ -33,6 +33,8 @@ class VectorIndex:
         self, query_vector: npt.NDArray[np.float32], k: int = 10
     ) -> list[tuple[Abstract, float]]:
         """Find the k documents most similar to the query vector."""
+        if self._matrix is None:
+            raise ValueError("Index not built. Call build() first.")
         query = np.array(query_vector, dtype=np.float32)
         norm = np.linalg.norm(query)
         if norm > 0:
@@ -53,6 +55,8 @@ class VectorIndex:
             - {path}.npy: the normalized embedding matrix
             - {path}.json: document metadata
         """
+        if self._matrix is None:
+            raise ValueError("Index not built. Call build() first.")
         path = Path(path)
         np.save(f"{path}.npy", self._matrix)
 
