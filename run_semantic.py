@@ -1,3 +1,4 @@
+import itertools
 import json
 import logging
 from pathlib import Path
@@ -21,31 +22,40 @@ CHECKPOINT_DIR = Path("data/checkpoints")
 
 
 @timing
-def build_vector_index(documents, model):
-    # Materialize the generator into a list so we can slice into it by chunk index
-    # and know the total count upfront (needed for the memmap shape).
-    # This keeps Abstract objects in RAM but avoids duplicating their text content.
-    docs = list(documents)
-
-    logger.info(f"Loaded {len(docs)} documents, generating embeddings...")
+def build_vector_index(documents, total, model):
+    logger.info(f"Building index for {total} documents...")
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
     Path(INDEX_PATH).parent.mkdir(parents=True, exist_ok=True)
 
-    total = len(docs)
     num_chunks = (total + CHECKPOINT_SIZE - 1) // CHECKPOINT_SIZE
     matrix = None
 
     for chunk_num, i in enumerate(range(0, total, CHECKPOINT_SIZE), 1):
         chunk_path = CHECKPOINT_DIR / f"chunk_{i}.npy"
+        docs_path = CHECKPOINT_DIR / f"chunk_{i}.json"
         end = min(i + CHECKPOINT_SIZE, total)
+        chunk_size = end - i
+
+        # Consume exactly one chunk from the generator. We only hold ~10k
+        # Abstract objects at a time instead of all 6.4M.
+        chunk_docs = list(itertools.islice(documents, chunk_size))
+
+        # Save doc metadata per-chunk so we never need all docs in memory.
+        # On resume these are read back from disk to assemble the final JSON.
+        if not docs_path.exists():
+            chunk_docs_data = {
+                str(i + j): {"ID": d.ID, "title": d.title, "abstract": d.abstract, "url": d.url}
+                for j, d in enumerate(chunk_docs)
+            }
+            with open(docs_path, "w") as f:
+                json.dump(chunk_docs_data, f)
 
         if chunk_path.exists():
             logger.info(f"  Chunk {chunk_num}/{num_chunks}: loading checkpoint ({end}/{total} docs)")
             chunk_vectors = np.load(chunk_path)
         else:
             logger.info(f"  Chunk {chunk_num}/{num_chunks}: embedding docs {i:,}–{end:,} of {total:,}")
-            # Build texts on the fly to avoid holding all 6.4M strings in memory at once
-            texts = [d.fulltext for d in docs[i:end]]
+            texts = [d.fulltext for d in chunk_docs]
             chunk_vectors = embed_batch(model, texts, batch_size=BATCH_SIZE, show_progress=True)
             # Save raw (unnormalized) embeddings so checkpoints aren't tied to index format
             np.save(chunk_path, chunk_vectors)
@@ -68,13 +78,13 @@ def build_vector_index(documents, model):
         matrix.flush()
         del matrix
 
-    # Save document metadata
-    docs_data = {
-        str(i): {"ID": doc.ID, "title": doc.title, "abstract": doc.abstract, "url": doc.url}
-        for i, doc in enumerate(docs)
-    }
+    # Assemble final document metadata from per-chunk JSON files
+    all_docs_data = {}
+    for i in range(0, total, CHECKPOINT_SIZE):
+        with open(CHECKPOINT_DIR / f"chunk_{i}.json") as f:
+            all_docs_data.update(json.load(f))
     with open(f"{INDEX_PATH}.json", "w") as f:
-        json.dump(docs_data, f)
+        json.dump(all_docs_data, f)
 
     # Load the finished index using memory-mapped I/O — the matrix stays on disk
     # and the OS pages in data as needed during search.
@@ -93,7 +103,8 @@ if __name__ == "__main__":
         logger.info(f"Loaded vector index with {len(index.documents)} documents from disk")
     except FileNotFoundError:
         logger.info("No saved index found, building from scratch...")
-        index = build_vector_index(load_documents(), model)
+        total, documents = load_documents()
+        index = build_vector_index(documents, total, model)
 
     logger.info(f"Index contains {len(index.documents)} documents")
 
