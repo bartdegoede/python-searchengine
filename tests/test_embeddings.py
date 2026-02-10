@@ -1,6 +1,6 @@
 import numpy as np
 
-from search.embeddings import get_embedding_model, embed_text, embed_batch
+from search.embeddings import embed_batch, embed_text, get_embedding_model
 
 
 def test_get_embedding_model():
