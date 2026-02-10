@@ -22,17 +22,16 @@ CHECKPOINT_DIR = Path("data/checkpoints")
 
 @timing
 def build_vector_index(documents, model):
-    docs = []
-    texts = []
-    for doc in documents:
-        docs.append(doc)
-        texts.append(doc.fulltext)
+    # Materialize the generator into a list so we can slice into it by chunk index
+    # and know the total count upfront (needed for the memmap shape).
+    # This keeps Abstract objects in RAM but avoids duplicating their text content.
+    docs = list(documents)
 
     logger.info(f"Loaded {len(docs)} documents, generating embeddings...")
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
     Path(INDEX_PATH).parent.mkdir(parents=True, exist_ok=True)
 
-    total = len(texts)
+    total = len(docs)
     num_chunks = (total + CHECKPOINT_SIZE - 1) // CHECKPOINT_SIZE
     matrix = None
 
@@ -45,23 +44,29 @@ def build_vector_index(documents, model):
             chunk_vectors = np.load(chunk_path)
         else:
             logger.info(f"  Chunk {chunk_num}/{num_chunks}: embedding docs {i:,}–{end:,} of {total:,}")
-            chunk_vectors = embed_batch(model, texts[i:end], batch_size=BATCH_SIZE, show_progress=True)
+            # Build texts on the fly to avoid holding all 6.4M strings in memory at once
+            texts = [d.fulltext for d in docs[i:end]]
+            chunk_vectors = embed_batch(model, texts, batch_size=BATCH_SIZE, show_progress=True)
+            # Save raw (unnormalized) embeddings so checkpoints aren't tied to index format
             np.save(chunk_path, chunk_vectors)
 
-        # Create the output memmap on first chunk (now we know dimensions)
+        # We can only create the memmap once we know the embedding dimensions
+        # from the first chunk (e.g. 384 for all-MiniLM-L6-v2).
         if matrix is None:
             matrix = np.lib.format.open_memmap(
-                f"{INDEX_PATH}.npy", mode="w+", dtype=np.float32,
+                f"{INDEX_PATH}.npy", mode="w+", dtype=np.float16,
                 shape=(total, chunk_vectors.shape[1]),
             )
 
-        # Normalize and write directly to disk
+        # Normalize in float32 for numerical stability, then downcast to float16
+        # to halve disk/memory usage. The precision loss is negligible for ranking.
         norms = np.linalg.norm(chunk_vectors, axis=1, keepdims=True)
         norms[norms == 0] = 1
-        matrix[i:end] = chunk_vectors / norms
+        matrix[i:end] = (chunk_vectors / norms).astype(np.float16)
 
-    matrix.flush()
-    del matrix
+    if matrix is not None:
+        matrix.flush()
+        del matrix
 
     # Save document metadata
     docs_data = {
@@ -71,7 +76,8 @@ def build_vector_index(documents, model):
     with open(f"{INDEX_PATH}.json", "w") as f:
         json.dump(docs_data, f)
 
-    # Load the finished index using memory-mapped I/O
+    # Load the finished index using memory-mapped I/O — the matrix stays on disk
+    # and the OS pages in data as needed during search.
     index = VectorIndex()
     index.load(INDEX_PATH)
     return index

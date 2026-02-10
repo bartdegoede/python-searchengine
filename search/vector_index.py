@@ -35,15 +35,17 @@ class VectorIndex:
         """Find the k documents most similar to the query vector."""
         if self._matrix is None:
             raise ValueError("Index not built. Call build() first.")
+        # Keep the query in float32 for precision — numpy will upcast the matrix
+        # (which may be float16) automatically during matmul.
         query = np.array(query_vector, dtype=np.float32)
         norm = np.linalg.norm(query)
         if norm > 0:
             query = query / norm
 
-        # Compute cosine similarity for all documents via dot product (vectors are normalized)
-        # This is the most expensive step, but it can be done efficiently with matrix multiplication.
+        # Cosine similarity via dot product — works because all vectors are unit-normalized.
         scores = self._matrix @ query
         k = min(k, len(self.documents))
+        # argpartition is O(n) vs O(n log n) for a full sort — we only need the top k.
         top_k = np.argpartition(scores, -k)[-k:]
         top_k = top_k[np.argsort(scores[top_k])[::-1]]
         return [(self.documents[int(i)], float(scores[i])) for i in top_k]
@@ -75,8 +77,10 @@ class VectorIndex:
     def load(self, path: str | Path) -> None:
         """Load a vector index from disk using memory-mapped I/O.
 
-        The embedding matrix is memory-mapped, so it doesn't need to fit in RAM.
-        The OS will page in data from disk as needed during search.
+        The embedding matrix is memory-mapped (mmap_mode="r"), so it doesn't
+        need to fit in RAM. The OS will page in data from disk as needed
+        during search. This works transparently regardless of the matrix dtype
+        (float16 or float32).
         """
         path = Path(path)
         self._matrix = np.load(f"{path}.npy", mmap_mode="r")
