@@ -6,6 +6,8 @@ from search.timing import timing
 from search.vector_index import VectorIndex
 
 logging.basicConfig(level=logging.INFO)
+# set httpx logging to WARNING to reduce noise from API calls
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 BATCH_SIZE = 256
 INDEX_PATH = "data/vector_index"
