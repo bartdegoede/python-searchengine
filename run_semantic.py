@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 
@@ -29,10 +30,12 @@ def build_vector_index(documents, model):
 
     logger.info(f"Loaded {len(docs)} documents, generating embeddings...")
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
+    Path(INDEX_PATH).parent.mkdir(parents=True, exist_ok=True)
 
-    all_vectors = []
     total = len(texts)
     num_chunks = (total + CHECKPOINT_SIZE - 1) // CHECKPOINT_SIZE
+    matrix = None
+
     for chunk_num, i in enumerate(range(0, total, CHECKPOINT_SIZE), 1):
         chunk_path = CHECKPOINT_DIR / f"chunk_{i}.npy"
         end = min(i + CHECKPOINT_SIZE, total)
@@ -45,11 +48,32 @@ def build_vector_index(documents, model):
             chunk_vectors = embed_batch(model, texts[i:end], batch_size=BATCH_SIZE, show_progress=True)
             np.save(chunk_path, chunk_vectors)
 
-        all_vectors.append(chunk_vectors)
+        # Create the output memmap on first chunk (now we know dimensions)
+        if matrix is None:
+            matrix = np.lib.format.open_memmap(
+                f"{INDEX_PATH}.npy", mode="w+", dtype=np.float32,
+                shape=(total, chunk_vectors.shape[1]),
+            )
 
-    vectors = np.vstack(all_vectors)
-    index = VectorIndex(dimensions=vectors.shape[1])
-    index.build(docs, vectors)
+        # Normalize and write directly to disk
+        norms = np.linalg.norm(chunk_vectors, axis=1, keepdims=True)
+        norms[norms == 0] = 1
+        matrix[i:end] = chunk_vectors / norms
+
+    matrix.flush()
+    del matrix
+
+    # Save document metadata
+    docs_data = {
+        str(i): {"ID": doc.ID, "title": doc.title, "abstract": doc.abstract, "url": doc.url}
+        for i, doc in enumerate(docs)
+    }
+    with open(f"{INDEX_PATH}.json", "w") as f:
+        json.dump(docs_data, f)
+
+    # Load the finished index using memory-mapped I/O
+    index = VectorIndex()
+    index.load(INDEX_PATH)
     return index
 
 
@@ -64,8 +88,6 @@ if __name__ == "__main__":
     except FileNotFoundError:
         logger.info("No saved index found, building from scratch...")
         index = build_vector_index(load_documents(), model)
-        index.save(INDEX_PATH)
-        logger.info(f"Saved vector index to {INDEX_PATH}")
 
     logger.info(f"Index contains {len(index.documents)} documents")
 
