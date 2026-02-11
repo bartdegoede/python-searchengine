@@ -1,18 +1,27 @@
 [project]
 name = "python-searchengine"
-version = "0.1.0"
+version = "0.2.0"
 description = "Simple full-text search engine implementation in Python"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "datasets",
     "PyStemmer",
+    "numpy",
+    "sentence-transformers",
 ]
 
 [dependency-groups]
 dev = [
+    "mypy>=1.19.1",
     "pytest",
     "ruff",
+]
+faiss = [
+    "faiss-cpu",
+]
+openai = [
+    "openai",
 ]
 
 [tool.ruff]
@@ -23,3 +32,6 @@ select = ["E", "F", "W", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.mypy]
+ignore_missing_imports = true
