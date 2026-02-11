@@ -28,6 +28,8 @@ uv run python run_semantic.py
 
 On first run this builds a vector index by embedding all 6.4M documents. Embeddings are checkpointed to `data/checkpoints/` so you can resume if interrupted. The finished index is saved to `data/vector_index.*` and memory-mapped on subsequent runs.
 
+To skip the multi-hour encoding step, download the pre-computed embeddings from [Hugging Face](https://huggingface.co/datasets/bartdegoede/wikipedia-semantic-search), place the JSON and `.npy` files in `data/checkpoints/`, and run `uv run python run_semantic.py`.
+
 If you'd like to download the dataset separately (e.g. before a demo):
 
 ```bash
