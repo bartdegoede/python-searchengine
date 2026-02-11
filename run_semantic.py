@@ -1,6 +1,8 @@
 import itertools
 import json
 import logging
+import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
@@ -29,6 +31,7 @@ def build_vector_index(documents, total, model):
 
     num_chunks = (total + CHECKPOINT_SIZE - 1) // CHECKPOINT_SIZE
     matrix = None
+    build_start = time.perf_counter()
 
     for chunk_num, i in enumerate(range(0, total, CHECKPOINT_SIZE), 1):
         chunk_path = CHECKPOINT_DIR / f"chunk_{i}.npy"
@@ -42,23 +45,37 @@ def build_vector_index(documents, total, model):
 
         # Save doc metadata per-chunk so we never need all docs in memory.
         # On resume these are read back from disk to assemble the final JSON.
+        # Write to a temp file then rename so a crash mid-write can't leave
+        # a corrupt file that blocks resume.
         if not docs_path.exists():
             chunk_docs_data = {
                 str(i + j): {"ID": d.ID, "title": d.title, "abstract": d.abstract, "url": d.url}
                 for j, d in enumerate(chunk_docs)
             }
-            with open(docs_path, "w") as f:
+            with tempfile.NamedTemporaryFile("w", dir=CHECKPOINT_DIR, suffix=".json", delete=False) as f:
                 json.dump(chunk_docs_data, f)
+                tmp_path = Path(f.name)
+            tmp_path.rename(docs_path)
 
+        t0 = time.perf_counter()
         if chunk_path.exists():
-            logger.info(f"  Chunk {chunk_num}/{num_chunks}: loading checkpoint ({end}/{total} docs)")
             chunk_vectors = np.load(chunk_path)
+            elapsed = time.perf_counter() - t0
+            logger.info(f"  Chunk {chunk_num}/{num_chunks}: loaded checkpoint ({end}/{total} docs) in {elapsed:.1f}s")
         else:
             logger.info(f"  Chunk {chunk_num}/{num_chunks}: embedding docs {i:,}–{end:,} of {total:,}")
             texts = [d.fulltext for d in chunk_docs]
             chunk_vectors = embed_batch(model, texts, batch_size=BATCH_SIZE, show_progress=True)
-            # Save raw (unnormalized) embeddings so checkpoints aren't tied to index format
-            np.save(chunk_path, chunk_vectors)
+            elapsed = time.perf_counter() - t0
+            logger.info(f"  Chunk {chunk_num}/{num_chunks}: embedded in {elapsed:.1f}s")
+            # Save raw embeddings via temp file + rename for crash safety
+            with tempfile.NamedTemporaryFile(dir=CHECKPOINT_DIR, suffix=".npy", delete=False) as f:
+                np.save(f, chunk_vectors)
+                tmp_path = Path(f.name)
+            tmp_path.rename(chunk_path)
+
+        total_elapsed = time.perf_counter() - build_start
+        logger.info(f"  Total elapsed: {total_elapsed:.1f}s")
 
         # We can only create the memmap once we know the embedding dimensions
         # from the first chunk (e.g. 384 for all-MiniLM-L6-v2).
