@@ -2,6 +2,8 @@
 
 Simple search engine implementation in Python for illustrative purposes to go with [this blog post](https://bart.degoe.de/building-a-full-text-search-engine-150-lines-of-code/).
 
+It also has a simple vector search implementation to go with [the follow-up post](https://bart.degoe.de/building-a-semantic-search-engine-in-250-lines-of-python/).
+
 ## Requirements
 
 Python 3.10 or greater, and [uv](https://docs.astral.sh/uv/).
